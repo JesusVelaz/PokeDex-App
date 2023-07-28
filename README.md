@@ -1,4 +1,3 @@
 # PokeDex-App
 
-Visit the App here! 
-link: https://jesusvelaz.github.io/PokeDex-App/
+Visit the App here: https://jesusvelaz.github.io/PokeDex-App/

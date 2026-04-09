@@ -234,6 +234,7 @@ const Main = () => {
             pokemon={pokeData}
             loading={loading}
             infoPokemon={(poke) => setPokeDex(poke)}
+            pageSize={pageSize}
           />
 
           <PaginationControls

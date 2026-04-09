@@ -1,19 +1,23 @@
 import { useRef, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { AiOutlineSearch } from "react-icons/ai";
+import PokedexLogo from "./PokedexLogo";
 
 const capitalize = (str) =>
   str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
 
 const SearchHeader = ({
-  pokemonName,
+  pokemonName = "",
   onPokemonNameChange,
   onSearch,
-  allPokemonNames,
+  allPokemonNames = [],
   onSuggestionSelect,
+  showSearch = true,
 }) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const inputRef = useRef(null);
+  const { pathname } = useLocation();
 
   const suggestions =
     pokemonName.length > 0
@@ -51,42 +55,56 @@ const SearchHeader = ({
   return (
     <div className="app-header">
       <div className="header-logo">
-        <img src={`${process.env.PUBLIC_URL}/images/headers.png`} alt="PokéDex" />
+        <Link to="/">
+          <PokedexLogo />
+        </Link>
       </div>
-      <div className="search-container">
-        <div className="autocomplete-wrapper">
-          <input
-            ref={inputRef}
-            type="text"
-            placeholder="Search Pokémon"
-            value={capitalize(pokemonName)}
-            onChange={(e) => {
-              onPokemonNameChange(e);
-              setShowSuggestions(true);
-              setActiveIndex(-1);
-            }}
-            onFocus={() => setShowSuggestions(true)}
-            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-            onKeyDown={handleKeyDown}
-          />
-          {showSuggestions && suggestions.length > 0 && (
-            <ul className="autocomplete-dropdown">
-              {suggestions.map((name, i) => (
-                <li
-                  key={name}
-                  className={`autocomplete-item${i === activeIndex ? " active" : ""}`}
-                  onMouseDown={() => handleSelect(name)}
-                >
-                  {capitalize(name)}
-                </li>
-              ))}
-            </ul>
-          )}
+
+      {showSearch && (
+        <div className="search-container">
+          <div className="autocomplete-wrapper">
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder="Search Pokémon"
+              value={capitalize(pokemonName)}
+              onChange={(e) => {
+                onPokemonNameChange(e);
+                setShowSuggestions(true);
+                setActiveIndex(-1);
+              }}
+              onFocus={() => setShowSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+              onKeyDown={handleKeyDown}
+            />
+            {showSuggestions && suggestions.length > 0 && (
+              <ul className="autocomplete-dropdown">
+                {suggestions.map((name, i) => (
+                  <li
+                    key={name}
+                    className={`autocomplete-item${i === activeIndex ? " active" : ""}`}
+                    onMouseDown={() => handleSelect(name)}
+                  >
+                    {capitalize(name)}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <button onClick={onSearch} aria-label="Search">
+            <AiOutlineSearch />
+          </button>
         </div>
-        <button onClick={onSearch} aria-label="Search">
-          <AiOutlineSearch />
-        </button>
-      </div>
+      )}
+
+      <nav className="nav-tabs">
+        <Link to="/pokedex" className={`nav-tab ${pathname === "/pokedex" ? "nav-tab--active" : ""}`}>
+          Pokédex
+        </Link>
+        <Link to="/teams" className={`nav-tab ${pathname === "/teams" ? "nav-tab--active" : ""}`}>
+          My Teams
+        </Link>
+      </nav>
     </div>
   );
 };

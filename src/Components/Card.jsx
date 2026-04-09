@@ -1,11 +1,17 @@
 import TYPE_COLORS from "./typeColors";
 
-const Card = ({ pokemon, loading, infoPokemon }) => {
+const Card = ({ pokemon, loading, infoPokemon, pageSize = 10 }) => {
   if (loading) {
     return (
-      <div className="loading-panel" role="status" aria-live="polite">
-        <div className="pokeball-loader" />
-        <p className="loading-text">Loading Pokémon...</p>
+      <div className="pokemon-grid" role="status" aria-live="polite" aria-label="Loading Pokémon">
+        {Array.from({ length: pageSize }).map((_, i) => (
+          <div key={i} className="card card-skeleton">
+            <div className="skeleton skeleton-number" />
+            <div className="skeleton skeleton-image" />
+            <div className="skeleton skeleton-name" />
+            <div className="skeleton skeleton-badges" />
+          </div>
+        ))}
       </div>
     );
   }

@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from "react";
+
 const getVisiblePages = (currentPage, totalPages) => {
   if (totalPages <= 7) {
     return Array.from({ length: totalPages }, (_, index) => index + 1);
@@ -16,9 +18,42 @@ const getVisiblePages = (currentPage, totalPages) => {
 
 const PaginationControls = ({ currentPage, totalPages, onGoToPage }) => {
   const pageNumbers = getVisiblePages(currentPage, totalPages);
+  const [pageInput, setPageInput] = useState(String(currentPage));
+  const [activeJumpIndex, setActiveJumpIndex] = useState(null);
+  const jumpInputRef = useRef(null);
+
+  useEffect(() => {
+    setPageInput(String(currentPage));
+    setActiveJumpIndex(null);
+  }, [currentPage]);
+
+  useEffect(() => {
+    if (activeJumpIndex !== null) {
+      jumpInputRef.current?.focus();
+      jumpInputRef.current?.select();
+    }
+  }, [activeJumpIndex]);
+
+  const handlePageSubmit = (e) => {
+    e.preventDefault();
+
+    const requestedPage = Number(pageInput);
+    if (!pageInput.trim() || !Number.isInteger(requestedPage)) {
+      setPageInput(String(currentPage));
+      setActiveJumpIndex(null);
+      return;
+    }
+
+    onGoToPage(requestedPage);
+  };
+
+  const openJumpInput = (index) => {
+    setActiveJumpIndex(index);
+    setPageInput("");
+  };
 
   return (
-    <div className="pagination">
+    <nav className="pagination" aria-label="Pagination">
       <button
         type="button"
         className="pagination-arrow"
@@ -26,15 +61,48 @@ const PaginationControls = ({ currentPage, totalPages, onGoToPage }) => {
         disabled={currentPage === 1}
         aria-label="Previous page"
       >
-        ‹ Prev
+        ‹
       </button>
 
-      <div className="page-number-group" aria-label="Pagination">
+      <div className="page-number-group">
         {pageNumbers.map((page, index) =>
-          page === "..." ? (
-            <span key={`ellipsis-${index}`} className="page-ellipsis">
-              ···
-            </span>
+          page === "..." && activeJumpIndex === index ? (
+            <form
+              key={`jump-${index}`}
+              className="page-jump page-jump--inline"
+              onSubmit={handlePageSubmit}
+            >
+              <input
+                ref={jumpInputRef}
+                type="number"
+                inputMode="numeric"
+                min="1"
+                max={totalPages}
+                value={pageInput}
+                onChange={(e) => setPageInput(e.target.value)}
+                onBlur={() => {
+                  setPageInput(String(currentPage));
+                  setActiveJumpIndex(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") {
+                    setPageInput(String(currentPage));
+                    setActiveJumpIndex(null);
+                  }
+                }}
+                aria-label={`Page number from 1 to ${totalPages}`}
+              />
+            </form>
+          ) : page === "..." ? (
+            <button
+              type="button"
+              key={`ellipsis-${index}`}
+              className="page-ellipsis"
+              onClick={() => openJumpInput(index)}
+              aria-label="Enter a page number"
+            >
+              ...
+            </button>
           ) : (
             <button
               type="button"
@@ -56,9 +124,9 @@ const PaginationControls = ({ currentPage, totalPages, onGoToPage }) => {
         disabled={currentPage === totalPages}
         aria-label="Next page"
       >
-        Next ›
+        ›
       </button>
-    </div>
+    </nav>
   );
 };
 

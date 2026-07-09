@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
-import SearchHeader from "../Components/SearchHeader";
 
 // ── Persistence ───────────────────────────────────────────────
 const STORAGE_KEY = "pokedex-teams";
@@ -27,6 +26,13 @@ const emptyTeam = (name = "New Team") => ({
   pokemon: Array(SLOT_COUNT).fill(null),
 });
 
+const toTeamPokemon = (pokemon) => ({
+  id: pokemon.id,
+  name: pokemon.name,
+  sprite: pokemon.sprites.front_default,
+  types: pokemon.types.map((t) => t.type.name),
+});
+
 // ── PokémonSlot ───────────────────────────────────────────────
 const PokemonSlot = ({ pokemon, isActive, onClick }) => (
   <div
@@ -34,14 +40,13 @@ const PokemonSlot = ({ pokemon, isActive, onClick }) => (
     onClick={onClick}
     title={
       pokemon
-        ? `${pokemon.name} — click to remove`
+        ? `${pokemon.name} — click to select`
         : "Click to add a Pokémon"
     }
   >
     {pokemon ? (
       <>
         <img src={pokemon.sprite} alt={pokemon.name} />
-        {isActive && <div className="team-slot-remove">✕</div>}
         <span className="team-slot-name">{pokemon.name}</span>
       </>
     ) : (
@@ -291,13 +296,14 @@ const TeamCard = ({
 };
 
 // ── TeamsPage ─────────────────────────────────────────────────
-const TeamsPage = () => {
+const TeamsPage = ({ teamAddRequest, onTeamsChange }) => {
   const [teams, setTeams] = useState(loadTeams);
   const [editingId, setEditingId] = useState(null);
   const [renamingId, setRenamingId] = useState(null);
   const [renameValue, setRenameValue] = useState("");
   const [activeSlots, setActiveSlots] = useState({}); // teamId → slotIndex | null
   const [allNames, setAllNames] = useState([]);
+  const [lastHandledAddRequest, setLastHandledAddRequest] = useState(null);
 
   useEffect(() => {
     axios
@@ -310,6 +316,62 @@ const TeamsPage = () => {
     setTeams(next);
     saveTeams(next);
   };
+
+  useEffect(() => {
+    onTeamsChange?.(
+      teams.map((team) => {
+        const filledSlots = team.pokemon.filter(Boolean).length;
+        return {
+          id: team.id,
+          name: team.name,
+          filledSlots,
+          totalSlots: SLOT_COUNT,
+          isFull: filledSlots >= SLOT_COUNT,
+        };
+      })
+    );
+  }, [teams, onTeamsChange]);
+
+  useEffect(() => {
+    if (!teamAddRequest || teamAddRequest.id === lastHandledAddRequest) return;
+
+    const pokemon = toTeamPokemon(teamAddRequest.pokemon);
+    let targetTeamId = null;
+    let targetSlot = -1;
+    let nextTeams = [...teams];
+
+    if (!teamAddRequest.createNewTeam) {
+      nextTeams = teams.map((team) => {
+        if (targetTeamId) return team;
+        if (teamAddRequest.targetTeamId && team.id !== teamAddRequest.targetTeamId) {
+          return team;
+        }
+
+        const emptySlot = team.pokemon.findIndex((slot) => !slot);
+        if (emptySlot === -1) return team;
+
+        targetTeamId = team.id;
+        targetSlot = emptySlot;
+        const nextPokemon = [...team.pokemon];
+        nextPokemon[emptySlot] = pokemon;
+        return { ...team, pokemon: nextPokemon };
+      });
+    }
+
+    if (!targetTeamId) {
+      const newTeam = emptyTeam("New Team");
+      newTeam.pokemon[0] = pokemon;
+      targetTeamId = newTeam.id;
+      targetSlot = 0;
+      nextTeams.push(newTeam);
+    }
+
+    persist(nextTeams);
+    setEditingId(targetTeamId);
+    setActiveSlots((slots) => ({ ...slots, [targetTeamId]: targetSlot }));
+    setLastHandledAddRequest(teamAddRequest.id);
+    document.getElementById("teams")?.scrollIntoView?.({ behavior: "smooth" });
+  }, [teamAddRequest, lastHandledAddRequest, teams]);
 
   const createTeam = () => {
     const team = emptyTeam("New Team");
@@ -385,9 +447,7 @@ const TeamsPage = () => {
 
   return (
     <>
-      <SearchHeader showSearch={false} />
-
-      <div className="teams-page">
+      <div className="teams-page" id="teams">
         <div className="teams-page-header">
           <div>
             <h1 className="teams-page-title">My Teams</h1>

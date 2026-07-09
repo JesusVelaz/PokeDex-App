@@ -5,13 +5,14 @@ import SearchHeader from "./SearchHeader";
 import FilterToolbar from "./FilterToolbar";
 import PaginationControls from "./PaginationControls";
 import PokemonDetailPanel from "./PokemonDetailPanel";
+import { getPokemonArtwork } from "./pokemonArtwork";
 
 const POKEMON_API = "https://pokeapi.co/api/v2/pokemon";
 const TYPE_API = "https://pokeapi.co/api/v2/type";
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 const DEFAULT_PAGE_SIZE = 10;
 
-const Main = () => {
+const Main = ({ onAddPokemonToTeam, teamOptions = [] }) => {
   const [pokeData, setPokeData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pokeDex, setPokeDex] = useState(null);
@@ -34,13 +35,53 @@ const Main = () => {
 
   const closePokemon = () => setPokeDex(null);
 
+  const getPageForPokemon = (pokemon) => {
+    const name = pokemon.name.toLowerCase();
+
+    if (selectedType !== "all" && Array.isArray(typePokemonRefs)) {
+      const typeIndex = typePokemonRefs.findIndex((item) => item.name === name);
+      if (typeIndex !== -1) {
+        return {
+          page: Math.floor(typeIndex / pageSize) + 1,
+          shouldResetType: false,
+        };
+      }
+    }
+
+    const allPokemonIndex = allPokemonNames.indexOf(name);
+    if (allPokemonIndex !== -1) {
+      return {
+        page: Math.floor(allPokemonIndex / pageSize) + 1,
+        shouldResetType: selectedType !== "all",
+      };
+    }
+
+    return {
+      page: Math.max(1, Math.ceil(pokemon.id / pageSize)),
+      shouldResetType: selectedType !== "all",
+    };
+  };
+
   const searchPokemon = async (nameOverride) => {
-    const query = typeof nameOverride === "string" ? nameOverride : pokemonName;
+    const query =
+      typeof nameOverride === "string" ? nameOverride : pokemonName;
     if (!query.trim()) return;
     try {
-      const resp = await axios.get(`https://pokeapi.co/api/v2/pokemon/${query}`);
+      const normalizedQuery = query.trim().toLowerCase();
+      const resp = await axios.get(
+        `https://pokeapi.co/api/v2/pokemon/${normalizedQuery}`
+      );
+      const pageMatch = getPageForPokemon(resp.data);
+
+      if (pageMatch.shouldResetType) {
+        setSelectedType("all");
+        setTypePokemonRefs([]);
+      }
+
+      setCurrentPage(pageMatch.page);
       setPokeDex(resp.data);
       setSearchError(null);
+      document.getElementById("pokedex")?.scrollIntoView?.({ behavior: "smooth" });
     } catch {
       setSearchError(`Pokémon "${query}" not found.`);
       setPokeDex(null);
@@ -91,7 +132,6 @@ const Main = () => {
     const loadTypePokemon = async () => {
       if (selectedType === "all") {
         setTypePokemonRefs([]);
-        setCurrentPage(1);
         return;
       }
 
@@ -176,13 +216,22 @@ const Main = () => {
     };
   }, [currentPage, selectedType, typePokemonRefs, pageSize]);
 
+  useEffect(() => {
+    pokeData.forEach((pokemon) => {
+      const artwork = getPokemonArtwork(pokemon);
+      if (!artwork) return;
+
+      const image = new Image();
+      image.src = artwork;
+    });
+  }, [pokeData]);
+
   const goToPage = (page) => {
     const safePage = Math.min(Math.max(page, 1), totalPages);
     if (safePage === currentPage) return;
 
-    setPokeData([]);
     setCurrentPage(safePage);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    document.getElementById("pokedex")?.scrollIntoView?.({ behavior: "smooth" });
   };
 
   const handleTypeChange = (e) => {
@@ -216,7 +265,7 @@ const Main = () => {
       {searchError && <div className="error-banner">{searchError}</div>}
       {error && <div className="error-banner">{error}</div>}
 
-      <div className="container">
+      <div className="container" id="pokedex">
         <div className="left-content">
           <FilterToolbar
             selectedType={selectedType}
@@ -244,7 +293,12 @@ const Main = () => {
           />
         </div>
 
-        <PokemonDetailPanel pokemon={pokeDex} onClose={closePokemon} />
+        <PokemonDetailPanel
+          pokemon={pokeDex}
+          onClose={closePokemon}
+          onAddToTeam={onAddPokemonToTeam}
+          teamOptions={teamOptions}
+        />
       </div>
     </>
   );

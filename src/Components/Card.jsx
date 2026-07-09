@@ -1,7 +1,7 @@
 import TYPE_COLORS from "./typeColors";
 
 const Card = ({ pokemon, loading, infoPokemon, pageSize = 10 }) => {
-  if (loading) {
+  if (loading && !pokemon.length) {
     return (
       <div className="pokemon-grid" role="status" aria-live="polite" aria-label="Loading Pokémon">
         {Array.from({ length: pageSize }).map((_, i) => (
@@ -21,7 +21,7 @@ const Card = ({ pokemon, loading, infoPokemon, pageSize = 10 }) => {
   }
 
   return (
-    <div className="pokemon-grid">
+    <div className={`pokemon-grid${loading ? " pokemon-grid--loading" : ""}`}>
       {pokemon.map((item) => (
         <div
           className={`card ${item.types[0].type.name}`}

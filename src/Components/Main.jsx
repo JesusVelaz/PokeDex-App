@@ -1,23 +1,38 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Card from "./Card";
 import axios from "axios";
 import SearchHeader from "./SearchHeader";
 import FilterToolbar from "./FilterToolbar";
 import PaginationControls from "./PaginationControls";
 import PokemonDetailPanel from "./PokemonDetailPanel";
+import Hero from "./Hero";
 import { getPokemonArtwork } from "./pokemonArtwork";
+import { getDailyPokemon } from "./dailyEncounter";
 
 const POKEMON_API = "https://pokeapi.co/api/v2/pokemon";
 const TYPE_API = "https://pokeapi.co/api/v2/type";
-const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
-const DEFAULT_PAGE_SIZE = 10;
 
-const Main = ({ onAddPokemonToTeam, teamOptions = [] }) => {
+const getGridLayout = () => {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  const columns = width > 1200 ? 4 : width > 900 ? 3 : 2;
+  const rows = height >= 820 ? 3 : height >= 620 ? 2 : 1;
+
+  return { columns, rows, pageSize: columns * rows };
+};
+
+const Main = ({
+  onAddPokemonToTeam,
+  teamOptions = [],
+  favorites = [],
+  onToggleFavorite,
+}) => {
   const [pokeData, setPokeData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pokeDex, setPokeDex] = useState(null);
   const [pokemonName, setPokemonName] = useState("");
   const [allPokemonNames, setAllPokemonNames] = useState([]);
+  const [heroPokemon, setHeroPokemon] = useState([]);
   const [error, setError] = useState(null);
   const [searchError, setSearchError] = useState(null);
   const [typeOptions, setTypeOptions] = useState([]);
@@ -26,7 +41,44 @@ const Main = ({ onAddPokemonToTeam, teamOptions = [] }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalPokemonCount, setTotalPokemonCount] = useState(0);
-  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [gridLayout, setGridLayout] = useState(getGridLayout);
+  const previousPageSize = useRef(gridLayout.pageSize);
+  const { pageSize } = gridLayout;
+  const favoriteIds = new Set(favorites.map((favorite) => favorite.id));
+
+  useEffect(() => {
+    let resizeFrame;
+
+    const updateGridLayout = () => {
+      cancelAnimationFrame(resizeFrame);
+      resizeFrame = requestAnimationFrame(() => {
+        const nextLayout = getGridLayout();
+        setGridLayout((currentLayout) =>
+          currentLayout.columns === nextLayout.columns &&
+          currentLayout.rows === nextLayout.rows
+            ? currentLayout
+            : nextLayout
+        );
+      });
+    };
+
+    window.addEventListener("resize", updateGridLayout);
+    return () => {
+      window.removeEventListener("resize", updateGridLayout);
+      cancelAnimationFrame(resizeFrame);
+    };
+  }, []);
+
+  useEffect(() => {
+    const oldPageSize = previousPageSize.current;
+    if (oldPageSize === pageSize) return;
+
+    setCurrentPage((page) =>
+      Math.floor(((page - 1) * oldPageSize) / pageSize) + 1
+    );
+    setPokeData([]);
+    previousPageSize.current = pageSize;
+  }, [pageSize]);
 
   const handleChange = (e) => {
     setPokemonName(e.target.value.toLowerCase());
@@ -97,7 +149,12 @@ const Main = ({ onAddPokemonToTeam, teamOptions = [] }) => {
   useEffect(() => {
     axios
       .get(`${POKEMON_API}?limit=2000&offset=0`)
-      .then((res) => setAllPokemonNames(res.data.results.map((p) => p.name)))
+      .then((res) => {
+        const results = res.data.results;
+        setAllPokemonNames(results.map((p) => p.name));
+
+        setHeroPokemon(getDailyPokemon(results));
+      })
       .catch(() => {});
   }, []);
 
@@ -147,7 +204,6 @@ const Main = ({ onAddPokemonToTeam, teamOptions = [] }) => {
         const refs = res.data.pokemon.map(({ pokemon }) => pokemon);
         setTypePokemonRefs(refs);
         setTotalPokemonCount(refs.length);
-        setTotalPages(Math.max(1, Math.ceil(refs.length / pageSize)));
       } catch {
         if (!isMounted) return;
         setError("Failed to load Pokémon for that type. Please try another filter.");
@@ -163,7 +219,7 @@ const Main = ({ onAddPokemonToTeam, teamOptions = [] }) => {
     return () => {
       isMounted = false;
     };
-  }, [selectedType, pageSize]);
+  }, [selectedType]);
 
   useEffect(() => {
     let isMounted = true;
@@ -244,39 +300,43 @@ const Main = ({ onAddPokemonToTeam, teamOptions = [] }) => {
     setPokeData([]);
   };
 
-  const handlePageSizeChange = (e) => {
-    const nextPageSize = Number(e.target.value);
-
-    setPageSize(nextPageSize);
-    setCurrentPage(1);
-    setPokeData([]);
-  };
-
   return (
     <>
       <SearchHeader
-        pokemonName={pokemonName}
-        onPokemonNameChange={handleChange}
-        onSearch={searchPokemon}
+        favorites={favorites}
+        onSelectFavorite={handleSuggestionSelect}
+        onRemoveFavorite={onToggleFavorite}
+      />
+
+      <Hero
+        totalSpeciesCount={allPokemonNames.length}
+        teamOptions={teamOptions}
+        heroPokemon={heroPokemon}
         allPokemonNames={allPokemonNames}
-        onSuggestionSelect={handleSuggestionSelect}
+        onSelectPokemon={handleSuggestionSelect}
       />
 
       {searchError && <div className="error-banner">{searchError}</div>}
       {error && <div className="error-banner">{error}</div>}
 
-      <div className="container" id="pokedex">
-        <div className="left-content">
+      <div id="pokedex" className="pokedex-section">
+        <div className="pokedex-header">
+          <h2 className="pokedex-title">Pokédex</h2>
+        </div>
+
+        <div className="container">
           <FilterToolbar
             selectedType={selectedType}
             currentPage={currentPage}
             totalPages={totalPages}
             totalPokemonCount={totalPokemonCount}
-            pageSize={pageSize}
-            pageSizeOptions={PAGE_SIZE_OPTIONS}
             typeOptions={typeOptions}
             onTypeChange={handleTypeChange}
-            onPageSizeChange={handlePageSizeChange}
+            pokemonName={pokemonName}
+            onPokemonNameChange={handleChange}
+            onSearch={searchPokemon}
+            allPokemonNames={allPokemonNames}
+            onSuggestionSelect={handleSuggestionSelect}
           />
 
           <Card
@@ -284,6 +344,8 @@ const Main = ({ onAddPokemonToTeam, teamOptions = [] }) => {
             loading={loading}
             infoPokemon={(poke) => setPokeDex(poke)}
             pageSize={pageSize}
+            favoriteIds={favoriteIds}
+            onToggleFavorite={onToggleFavorite}
           />
 
           <PaginationControls
@@ -291,15 +353,16 @@ const Main = ({ onAddPokemonToTeam, teamOptions = [] }) => {
             totalPages={totalPages}
             onGoToPage={goToPage}
           />
-        </div>
 
-        <PokemonDetailPanel
-          pokemon={pokeDex}
-          onClose={closePokemon}
-          onAddToTeam={onAddPokemonToTeam}
-          teamOptions={teamOptions}
-        />
+          <PokemonDetailPanel
+            pokemon={pokeDex}
+            onClose={closePokemon}
+            onAddToTeam={onAddPokemonToTeam}
+            teamOptions={teamOptions}
+          />
+        </div>
       </div>
+
     </>
   );
 };

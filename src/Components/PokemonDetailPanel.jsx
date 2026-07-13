@@ -1,13 +1,23 @@
 import { AiOutlineClose } from "react-icons/ai";
 import Pokeinfo from "./Pokeinfo";
 
-const PokemonDetailPanel = ({ pokemon, onClose, onAddToTeam, teamOptions }) => {
+const PokemonDetailPanel = ({
+  pokemon,
+  onClose,
+  onAddToTeam,
+  teamOptions,
+}) => {
+  const primaryType = pokemon?.types?.[0]?.type?.name;
+
   return (
-    <div className={`right-column${pokemon ? "" : " right-column--empty"}`}>
+    <aside
+      className={`right-column${pokemon ? ` ${primaryType}` : " right-column--empty"}`}
+      aria-label={pokemon ? `${pokemon.name} details` : "Pokémon details"}
+    >
       <div className="right-content">
         {pokemon ? (
           <>
-            <button className="close-button" onClick={onClose} aria-label="Close">
+            <button type="button" className="close-button" onClick={onClose} aria-label="Close">
               <AiOutlineClose />
             </button>
             <Pokeinfo
@@ -20,7 +30,7 @@ const PokemonDetailPanel = ({ pokemon, onClose, onAddToTeam, teamOptions }) => {
           <p className="right-placeholder">Click a Pokémon to see details</p>
         )}
       </div>
-    </div>
+    </aside>
   );
 };
 

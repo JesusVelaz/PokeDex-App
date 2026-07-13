@@ -1,117 +1,118 @@
-import { useRef, useState } from "react";
-import { AiOutlineSearch } from "react-icons/ai";
+import { useEffect, useRef, useState } from "react";
+import { MdFavorite, MdKeyboardArrowDown } from "react-icons/md";
 import PokedexLogo from "./PokedexLogo";
 
-const capitalize = (str) =>
-  str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
-
-// Rank a name against the query: 0 = prefix, 1 = substring,
-// 2 = subsequence (letters appear in order), -1 = no match.
-const fuzzyRank = (name, query) => {
-  if (name.startsWith(query)) return 0;
-  if (name.includes(query)) return 1;
-  let qi = 0;
-  for (let i = 0; i < name.length && qi < query.length; i++) {
-    if (name[i] === query[qi]) qi++;
-  }
-  return qi === query.length ? 2 : -1;
-};
+const formatName = (name = "") =>
+  name
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 
 const SearchHeader = ({
-  pokemonName = "",
-  onPokemonNameChange,
-  onSearch,
-  allPokemonNames = [],
-  onSuggestionSelect,
+  favorites = [],
+  onSelectFavorite,
+  onRemoveFavorite,
 }) => {
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(-1);
-  const inputRef = useRef(null);
+  const [isFavoritesOpen, setIsFavoritesOpen] = useState(false);
+  const menuRef = useRef(null);
 
-  const suggestions =
-    pokemonName.length > 0
-      ? allPokemonNames
-          .map((name) => ({ name, rank: fuzzyRank(name, pokemonName) }))
-          .filter(({ rank }) => rank !== -1)
-          .sort((a, b) => a.rank - b.rank || a.name.length - b.name.length)
-          .slice(0, 8)
-          .map(({ name }) => name)
-      : [];
+  useEffect(() => {
+    if (!isFavoritesOpen) return undefined;
 
-  const handleKeyDown = (e) => {
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setActiveIndex((i) => Math.min(i + 1, suggestions.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setActiveIndex((i) => Math.max(i - 1, -1));
-    } else if (e.key === "Enter") {
-      if (activeIndex >= 0 && suggestions[activeIndex]) {
-        onSuggestionSelect(suggestions[activeIndex]);
-      } else {
-        onSearch();
+    const closeOnOutsideClick = (event) => {
+      if (!menuRef.current?.contains(event.target)) {
+        setIsFavoritesOpen(false);
       }
-      setShowSuggestions(false);
-      setActiveIndex(-1);
-    } else if (e.key === "Escape") {
-      setShowSuggestions(false);
-      setActiveIndex(-1);
-    }
-  };
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setIsFavoritesOpen(false);
+    };
 
-  const handleSelect = (name) => {
-    onSuggestionSelect(name);
-    setShowSuggestions(false);
-    setActiveIndex(-1);
-    inputRef.current?.blur();
-  };
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isFavoritesOpen]);
 
   return (
-    <div className="app-header">
-      <div className="header-logo">
-        <PokedexLogo />
-      </div>
+    <header className="app-header">
+      <div className="app-header-inner">
+        <a href="#trainer-dashboard-title" className="header-logo" aria-label="Go to Trainer Field Desk">
+          <PokedexLogo />
+        </a>
 
-      <div className="search-container">
-        <div className="autocomplete-wrapper">
-          <input
-            ref={inputRef}
-            type="text"
-            placeholder="Search Pokémon"
-            value={capitalize(pokemonName)}
-            onChange={(e) => {
-              onPokemonNameChange(e);
-              setShowSuggestions(true);
-              setActiveIndex(-1);
-            }}
-            onFocus={() => setShowSuggestions(true)}
-            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-            onKeyDown={handleKeyDown}
-          />
-          {showSuggestions && suggestions.length > 0 && (
-            <ul className="autocomplete-dropdown">
-              {suggestions.map((name, i) => (
-                <li
-                  key={name}
-                  className={`autocomplete-item${i === activeIndex ? " active" : ""}`}
-                  onMouseDown={() => handleSelect(name)}
-                >
-                  {capitalize(name)}
-                </li>
-              ))}
-            </ul>
-          )}
+        <div className="header-actions">
+          <div className="header-console">
+          <nav className="nav-tabs" aria-label="Primary navigation">
+            <a href="#pokedex" className="nav-tab"><span aria-hidden="true">◉</span> Pokédex</a>
+            <a href="#teams" className="nav-tab"><span aria-hidden="true">▦</span> My Teams</a>
+          </nav>
+          </div>
+
+          <div className="header-favorites" ref={menuRef}>
+            <button
+              type="button"
+              className={`header-favorites-toggle${isFavoritesOpen ? " is-open" : ""}`}
+              aria-label={`Favorites, ${favorites.length} saved`}
+              aria-expanded={isFavoritesOpen}
+              aria-controls="header-favorites-list"
+              onClick={() => setIsFavoritesOpen((open) => !open)}
+            >
+              <MdFavorite />
+              <span className="header-favorites-label">Favorites</span>
+              <small>{favorites.length}</small>
+              <MdKeyboardArrowDown className="header-favorites-arrow" />
+            </button>
+
+            {isFavoritesOpen && (
+              <div className="header-favorites-dropdown" id="header-favorites-list">
+                <div className="header-favorites-heading">
+                  <strong>Favorite Pokémon</strong>
+                  <small>Saved on this device</small>
+                </div>
+                {favorites.length === 0 ? (
+                  <p className="header-favorites-empty">Use a heart to add a Pokémon.</p>
+                ) : (
+                  <div className="header-favorites-list">
+                    {favorites.map((pokemon) => (
+                      <div className="header-favorite-item" key={pokemon.id}>
+                        <button
+                          type="button"
+                          className="header-favorite-open"
+                          onClick={() => {
+                            onSelectFavorite?.(pokemon.name);
+                            setIsFavoritesOpen(false);
+                          }}
+                          aria-label={`View ${formatName(pokemon.name)}`}
+                        >
+                          {pokemon.artwork || pokemon.sprite ? (
+                            <img src={pokemon.artwork || pokemon.sprite} alt="" />
+                          ) : (
+                            <span className="header-favorite-placeholder">?</span>
+                          )}
+                          <span>{formatName(pokemon.name)}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="header-favorite-remove"
+                          onClick={() => onRemoveFavorite?.(pokemon)}
+                          aria-label={`Remove ${formatName(pokemon.name)} from favorites`}
+                          title="Remove favorite"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-        <button onClick={onSearch} aria-label="Search">
-          <AiOutlineSearch />
-        </button>
       </div>
-
-      <nav className="nav-tabs">
-        <a href="#pokedex" className="nav-tab">Pokédex</a>
-        <a href="#teams" className="nav-tab">My Teams</a>
-      </nav>
-    </div>
+    </header>
   );
 };
 

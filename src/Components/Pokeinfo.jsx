@@ -1,62 +1,143 @@
-import { useEffect, useState } from "react";
-import { getPokemonArtwork, getPokemonFallbackSprite } from "./pokemonArtwork";
+import { useEffect, useRef, useState } from "react";
+import {
+  MdAutoAwesome,
+  MdPause,
+  MdVolumeUp,
+} from "react-icons/md";
+import { getPokemonFallbackSprite } from "./pokemonArtwork";
+import TYPE_COLORS from "./typeColors";
 
 const MAX_STAT = 255;
 const NEW_TEAM_VALUE = "__new_team__";
 
-const Pokeinfo = ({ data, onAddToTeam, teamOptions = [] }) => {
-  const [artworkStatus, setArtworkStatus] = useState("loading");
+const Pokeinfo = ({
+  data,
+  onAddToTeam,
+  teamOptions = [],
+}) => {
   const [selectedTeamId, setSelectedTeamId] = useState(NEW_TEAM_VALUE);
-
-  useEffect(() => {
-    if (!data) return;
-
-    const highResArtwork = getPokemonArtwork(data);
-    const fallbackArtwork = getPokemonFallbackSprite(data);
-
-    if (!highResArtwork || highResArtwork === fallbackArtwork) {
-      setArtworkStatus("ready");
-      return;
-    }
-
-    setArtworkStatus("loading");
-    const image = new Image();
-    image.src = highResArtwork;
-    image.onload = () => setArtworkStatus("ready");
-    image.onerror = () => setArtworkStatus("failed");
-
-    return () => {
-      image.onload = null;
-      image.onerror = null;
-    };
-  }, [data]);
+  const [showShiny, setShowShiny] = useState(false);
+  const [isCryPlaying, setIsCryPlaying] = useState(false);
+  const audioRef = useRef(null);
 
   useEffect(() => {
     const firstOpenTeam = teamOptions.find((team) => !team.isFull);
     setSelectedTeamId(firstOpenTeam?.id ?? NEW_TEAM_VALUE);
   }, [teamOptions, data?.id]);
 
+  useEffect(() => {
+    setShowShiny(false);
+    setIsCryPlaying(false);
+
+    return () => {
+      const audio = audioRef.current;
+      if (!audio) return;
+
+      audio.onended = null;
+      audio.onerror = null;
+      audio.pause();
+      audio.currentTime = 0;
+      audioRef.current = null;
+    };
+  }, [data?.id]);
+
   if (!data) return null;
 
-  const highResArtwork = getPokemonArtwork(data);
-  const fallbackArtwork = getPokemonFallbackSprite(data);
-  const artwork = artworkStatus === "ready" ? highResArtwork : fallbackArtwork;
-  const isArtworkLoading = artworkStatus === "loading" && highResArtwork !== fallbackArtwork;
+  const defaultSprite = getPokemonFallbackSprite(data);
+  const statTotal = data.stats.reduce((total, stat) => total + stat.base_stat, 0);
+  const shinySprite = data.sprites?.front_shiny;
+  const cryUrl = data.cries?.latest ?? data.cries?.legacy;
+  const displayedImage = showShiny && shinySprite ? shinySprite : defaultSprite;
+
+  const toggleCry = () => {
+    if (!cryUrl) return;
+
+    if (audioRef.current && isCryPlaying) {
+      const audio = audioRef.current;
+      audio.onended = null;
+      audio.onerror = null;
+      audio.pause();
+      audio.currentTime = 0;
+      audioRef.current = null;
+      setIsCryPlaying(false);
+      return;
+    }
+
+    const audio = new Audio(cryUrl);
+    audioRef.current = audio;
+    audio.onended = () => {
+      audioRef.current = null;
+      setIsCryPlaying(false);
+    };
+    audio.onerror = () => {
+      audioRef.current = null;
+      setIsCryPlaying(false);
+    };
+    setIsCryPlaying(true);
+    audio.play().catch(() => {
+      audioRef.current = null;
+      setIsCryPlaying(false);
+    });
+  };
 
   return (
-    <>
-      <h1>{data.name}</h1>
-      <div className={`pokemon-image-frame${isArtworkLoading ? " pokemon-image-frame--loading" : ""}`}>
-        {artwork ? (
-          <img src={artwork} alt={data.name} className="pokemon-detail-image" />
+    <div className="detail-dossier">
+      <div className="detail-heading">
+        <span className="detail-kicker">Pokédex entry</span>
+        <span className="detail-number">#{String(data.id).padStart(4, "0")}</span>
+        <h1>{data.name}</h1>
+        <div className="detail-type-badges">
+          {data.types.map(({ type }) => {
+            const color = TYPE_COLORS[type.name];
+            return (
+              <span
+                key={type.name}
+                className="type-badge"
+                style={color ? { backgroundColor: color.bg, color: color.text } : undefined}
+              >
+                {type.name}
+              </span>
+            );
+          })}
+        </div>
+      </div>
+      <div className="pokemon-image-frame">
+        {displayedImage ? (
+          <img
+            src={displayedImage}
+            alt={`${data.name}${showShiny ? " shiny" : ""}`}
+            className="pokemon-detail-image"
+          />
         ) : (
           <div className="sprite-placeholder" style={{ width: "100%", height: "180px", fontSize: "3rem" }}>?</div>
         )}
       </div>
-      <div className="poke-meta">
-        <span>Height: {(data.height / 10).toFixed(1)}m</span>
-        <span>Weight: {(data.weight / 10).toFixed(1)}kg</span>
+      <div className="detail-media-actions" aria-label="Pokémon media controls">
+        <button
+          type="button"
+          onClick={toggleCry}
+          disabled={!cryUrl}
+          aria-label={`${isCryPlaying ? "Stop" : "Play"} ${data.name} cry`}
+        >
+          {isCryPlaying ? <MdPause /> : <MdVolumeUp />}
+          <span>{isCryPlaying ? "Stop cry" : "Hear cry"}</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowShiny((current) => !current)}
+          disabled={!shinySprite}
+          aria-pressed={showShiny}
+          aria-label={`${showShiny ? "Show standard artwork for" : "Show front shiny for"} ${data.name}`}
+        >
+          <MdAutoAwesome />
+          <span>{showShiny ? "Standard" : "Shiny"}</span>
+        </button>
       </div>
+      <div className="poke-meta">
+        <span><small>Height</small>{(data.height / 10).toFixed(1)}m</span>
+        <span><small>Weight</small>{(data.weight / 10).toFixed(1)}kg</span>
+      </div>
+      <h2 className="detail-section-title">Known abilities</h2>
       <div className="abilities">
         {data.abilities.map((poke) => (
           <div
@@ -68,6 +149,10 @@ const Pokeinfo = ({ data, onAddToTeam, teamOptions = [] }) => {
         ))}
       </div>
       <div className="base-stat">
+        <div className="detail-stat-heading">
+          <h2 className="detail-section-title">Base stats</h2>
+          <span>Total {statTotal}</span>
+        </div>
         {data.stats.map((poke) => (
           <div key={poke.stat.name}>
             <h3 className="pokemon-stat-display">
@@ -117,7 +202,7 @@ const Pokeinfo = ({ data, onAddToTeam, teamOptions = [] }) => {
           </button>
         </div>
       )}
-    </>
+    </div>
   );
 };
 

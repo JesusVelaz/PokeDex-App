@@ -1,4 +1,5 @@
 import TYPE_COLORS from "./typeColors";
+import PokemonSearchBar from "./PokemonSearchBar";
 
 const DEFAULT_PILL = { bg: "#b74555", text: "#fff6d9" };
 
@@ -7,11 +8,13 @@ const FilterToolbar = ({
   currentPage,
   totalPages,
   totalPokemonCount,
-  pageSize,
-  pageSizeOptions,
   typeOptions,
   onTypeChange,
-  onPageSizeChange,
+  pokemonName = "",
+  onPokemonNameChange,
+  onSearch,
+  allPokemonNames = [],
+  onSuggestionSelect,
 }) => {
   const pillColor = TYPE_COLORS[selectedType] ?? DEFAULT_PILL;
 
@@ -29,6 +32,17 @@ const FilterToolbar = ({
         </p>
       </div>
 
+      <div className="toolbar-search">
+        <span className="toolbar-search-label">Search Pokémon</span>
+        <PokemonSearchBar
+          pokemonName={pokemonName}
+          onPokemonNameChange={onPokemonNameChange}
+          onSearch={onSearch}
+          allPokemonNames={allPokemonNames}
+          onSuggestionSelect={onSuggestionSelect}
+        />
+      </div>
+
       <div className="toolbar-controls">
         <label className="type-filter">
           <span>Filter by type</span>
@@ -42,16 +56,6 @@ const FilterToolbar = ({
           </select>
         </label>
 
-        <label className="type-filter">
-          <span>Cards per page</span>
-          <select value={pageSize} onChange={onPageSizeChange}>
-            {pageSizeOptions.map((size) => (
-              <option key={size} value={size}>
-                {size}
-              </option>
-            ))}
-          </select>
-        </label>
       </div>
     </div>
   );

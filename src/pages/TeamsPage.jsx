@@ -1,21 +1,49 @@
 import { useState, useEffect, useRef } from "react";
 import axios from "axios";
+import { AiOutlineClose } from "react-icons/ai";
+import { MdAutoAwesome } from "react-icons/md";
+import teamEmblems from "../images/team-emblems.png";
 
 // ── Persistence ───────────────────────────────────────────────
 const STORAGE_KEY = "pokedex-teams";
 const SLOT_COUNT = 6;
 
+const normalizeTeamPokemon = (pokemon) => {
+  if (!pokemon) return null;
+
+  return {
+    ...pokemon,
+    shinySprite:
+      pokemon.shinySprite ||
+      `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/shiny/${pokemon.id}.png`,
+    isShiny: Boolean(pokemon.isShiny),
+  };
+};
+
 const loadTeams = () => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const saved = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(saved)) return [];
+
+    return saved.map((team) => ({
+      ...team,
+      pokemon: Array.from({ length: SLOT_COUNT }, (_, index) =>
+        normalizeTeamPokemon(team.pokemon?.[index])
+      ),
+    }));
   } catch {
     return [];
   }
 };
 
-const saveTeams = (teams) =>
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(teams));
+const saveTeams = (teams) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(teams));
+  } catch {
+    // Teams still remain available for the current session.
+  }
+};
 
 const generateId = () =>
   `team_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -30,11 +58,19 @@ const toTeamPokemon = (pokemon) => ({
   id: pokemon.id,
   name: pokemon.name,
   sprite: pokemon.sprites.front_default,
+  shinySprite: pokemon.sprites.front_shiny,
+  isShiny: false,
   types: pokemon.types.map((t) => t.type.name),
 });
 
 // ── PokémonSlot ───────────────────────────────────────────────
-const PokemonSlot = ({ pokemon, isActive, onClick }) => (
+const PokemonSlot = ({
+  pokemon,
+  isActive,
+  onClick,
+  onRemove,
+  onToggleShiny,
+}) => (
   <div
     className={`team-slot${isActive ? " team-slot--active" : ""}${pokemon ? " team-slot--filled" : ""}`}
     onClick={onClick}
@@ -46,8 +82,41 @@ const PokemonSlot = ({ pokemon, isActive, onClick }) => (
   >
     {pokemon ? (
       <>
-        <img src={pokemon.sprite} alt={pokemon.name} />
+        <img
+          src={pokemon.isShiny && pokemon.shinySprite ? pokemon.shinySprite : pokemon.sprite}
+          alt={`${pokemon.name}${pokemon.isShiny ? " shiny" : ""}`}
+        />
         <span className="team-slot-name">{pokemon.name}</span>
+        <div className="team-slot-actions">
+          <button
+            type="button"
+            className={`team-slot-icon team-slot-shiny${pokemon.isShiny ? " is-active" : ""}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleShiny();
+            }}
+            disabled={!pokemon.shinySprite}
+            aria-pressed={pokemon.isShiny}
+            aria-label={`${pokemon.isShiny ? "Show standard" : "Show shiny"} ${pokemon.name}`}
+            title={pokemon.isShiny ? "Show standard sprite" : "Show shiny sprite"}
+          >
+            <MdAutoAwesome />
+          </button>
+          {isActive && (
+            <button
+              type="button"
+              className="team-slot-icon team-slot-delete"
+              onClick={(event) => {
+                event.stopPropagation();
+                onRemove();
+              }}
+              aria-label={`Remove ${pokemon.name} from team`}
+              title="Remove from team"
+            >
+              <AiOutlineClose />
+            </button>
+          )}
+        </div>
       </>
     ) : (
       <span className="team-slot-empty">+</span>
@@ -71,13 +140,12 @@ const TeamCard = ({
   onSlotClick,
   onAddPokemon,
   onRemovePokemon,
+  onToggleShiny,
 }) => {
-  const [menuOpen, setMenuOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState([]);
   const [addingPoke, setAddingPoke] = useState(false);
   const inputRef = useRef(null);
-  const menuRef = useRef(null);
 
   // Filter suggestions from pre-loaded names
   useEffect(() => {
@@ -103,16 +171,6 @@ const TeamCard = ({
     setSuggestions([]);
   }, [activeSlot]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Close menu on outside click
-  useEffect(() => {
-    if (!menuOpen) return;
-    const close = (e) => {
-      if (!menuRef.current?.contains(e.target)) setMenuOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [menuOpen]);
-
   const handleSelect = async (suggestion) => {
     setAddingPoke(true);
     try {
@@ -124,6 +182,8 @@ const TeamCard = ({
         id: d.id,
         name: d.name,
         sprite: d.sprites.front_default,
+        shinySprite: d.sprites.front_shiny,
+        isShiny: false,
         types: d.types.map((t) => t.type.name),
       });
     } catch {
@@ -141,7 +201,7 @@ const TeamCard = ({
     <div className={`team-card${isEditing ? " team-card--open" : ""}`}>
       {/* ── Header row ── */}
       <div className="team-card-header" onClick={onToggleEdit}>
-        <div className="team-card-meta">
+        <div className="team-card-title-row">
           {isRenaming ? (
             <input
               className="team-rename-input"
@@ -155,53 +215,58 @@ const TeamCard = ({
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <span className="team-card-name">{team.name}</span>
-          )}
-          <span className="team-card-count">
-            <span
-              className="team-count-pip"
-              style={{ "--filled": filled }}
-            />
-            {filled}/{SLOT_COUNT} Pokémon
-          </span>
-        </div>
-
-        <div className="team-card-actions" ref={menuRef}>
-          <button
-            className="team-action-btn"
-            aria-label="Team options"
-            onClick={(e) => {
-              e.stopPropagation();
-              setMenuOpen((o) => !o);
-            }}
-          >
-            ⚙
-          </button>
-          {menuOpen && (
-            <div className="team-menu">
+            <div className="team-card-name-row">
+              <span className="team-card-name">{team.name}</span>
               <button
-                className="team-menu-item"
+                className="team-name-edit-btn"
+                aria-label="Rename team"
+                title="Rename team"
                 onClick={(e) => {
                   e.stopPropagation();
                   onStartRename();
-                  setMenuOpen(false);
                 }}
               >
-                ✏ Rename
-              </button>
-              <button
-                className="team-menu-item team-menu-item--danger"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete();
-                  setMenuOpen(false);
-                }}
-              >
-                🗑 Delete team
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  height="16"
+                  width="16"
+                  viewBox="0 -960 960 960"
+                  fill="currentColor"
+                >
+                  <path d="M200-120q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h357l-80 80H200v560h560v-278l80-80v358q0 33-23.5 56.5T760-120H200Zm280-360ZM360-360v-170l367-367q12-12 27-18t30-6q16 0 30.5 6t26.5 18l56 57q11 12 17 26.5t6 29.5q0 15-5.5 29.5T897-728L530-360H360Zm481-424-56-56 56 56ZM440-440h56l232-232-28-28-29-28-231 231v57Zm260-260-29-28 29 28 28 28-28-28Z" />
+                </svg>
               </button>
             </div>
           )}
+
+          <button
+            className="team-action-btn team-action-btn--danger"
+            aria-label="Delete team"
+            title="Delete team"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              height="18"
+              width="18"
+              viewBox="0 -960 960 960"
+              fill="currentColor"
+            >
+              <path d="M280-120q-33 0-56.5-23.5T200-200v-520h-40v-80h200v-40h240v40h200v80h-40v520q0 33-23.5 56.5T680-120H280Zm400-600H280v520h400v-520ZM360-280h80v-360h-80v360Zm160 0h80v-360h-80v360ZM280-720v520-520Z" />
+            </svg>
+          </button>
         </div>
+
+        <span className="team-card-count">
+          <span
+            className="team-count-pip"
+            style={{ "--filled": filled }}
+          />
+          {filled}/{SLOT_COUNT} Pokémon
+        </span>
       </div>
 
       {/* ── Pokémon slots ── */}
@@ -212,10 +277,12 @@ const TeamCard = ({
             pokemon={poke}
             isActive={isEditing && activeSlot === i}
             onClick={(e) => {
-              if (!isEditing) { onToggleEdit(); return; }
               e.stopPropagation();
+              if (!isEditing) onToggleEdit();
               onSlotClick(i, poke);
             }}
+            onRemove={() => onRemovePokemon(i)}
+            onToggleShiny={() => onToggleShiny(i)}
           />
         ))}
       </div>
@@ -231,8 +298,12 @@ const TeamCard = ({
             /* Filled slot — show remove option */
             <div className="slot-remove-panel">
               <img
-                src={team.pokemon[activeSlot].sprite}
-                alt={team.pokemon[activeSlot].name}
+                src={
+                  team.pokemon[activeSlot].isShiny && team.pokemon[activeSlot].shinySprite
+                    ? team.pokemon[activeSlot].shinySprite
+                    : team.pokemon[activeSlot].sprite
+                }
+                alt={`${team.pokemon[activeSlot].name}${team.pokemon[activeSlot].isShiny ? " shiny" : ""}`}
                 className="slot-remove-sprite"
               />
               <div className="slot-remove-info">
@@ -445,6 +516,20 @@ const TeamsPage = ({ teamAddRequest, onTeamsChange }) => {
     setActiveSlots((s) => ({ ...s, [teamId]: null }));
   };
 
+  const togglePokemonShiny = (teamId, slotIndex) => {
+    persist(
+      teams.map((team) => {
+        if (team.id !== teamId) return team;
+        const pokemon = [...team.pokemon];
+        const selected = pokemon[slotIndex];
+        if (!selected?.shinySprite) return team;
+
+        pokemon[slotIndex] = { ...selected, isShiny: !selected.isShiny };
+        return { ...team, pokemon };
+      })
+    );
+  };
+
   return (
     <>
       <div className="teams-page" id="teams">
@@ -465,24 +550,7 @@ const TeamsPage = ({ teamAddRequest, onTeamsChange }) => {
         {teams.length === 0 ? (
           <div className="teams-empty">
             <div className="teams-empty-icon">
-              <svg viewBox="0 0 100 100" width="80" height="80" xmlns="http://www.w3.org/2000/svg">
-                {/* Bottom half - light gray */}
-                <path d="M 5,50 A 45,45 0 0,0 95,50 Z" fill="#D0D0D8" />
-                {/* Top half - purple */}
-                <path d="M 5,50 A 45,45 0 0,1 95,50 Z" fill="#7B4F9E" />
-                {/* Pink/red upper-left panel */}
-                <path d="M 5,50 A 45,45 0 0,1 28,13 L 50,50 Z" fill="#C1547A" />
-                {/* Pink/red upper-right panel */}
-                <path d="M 72,13 A 45,45 0 0,1 95,50 L 50,50 Z" fill="#C1547A" />
-                {/* Black divider band */}
-                <rect x="5" y="46" width="90" height="8" fill="#222" />
-                {/* Outer button ring */}
-                <circle cx="50" cy="50" r="13" fill="#333" />
-                {/* Inner button */}
-                <circle cx="50" cy="50" r="9" fill="#E8E8E8" />
-                {/* M letter */}
-                <text x="50" y="37" textAnchor="middle" fontSize="16" fontWeight="bold" fontFamily="Arial, sans-serif" fill="white" letterSpacing="-1">M</text>
-              </svg>
+              <img src={teamEmblems} alt="Three team emblems" />
             </div>
             <p className="teams-empty-title">No teams yet</p>
             <p className="teams-empty-sub">
@@ -524,6 +592,7 @@ const TeamsPage = ({ teamAddRequest, onTeamsChange }) => {
                 }}
                 onAddPokemon={(pokemon) => addPokemon(team.id, pokemon)}
                 onRemovePokemon={(slotIndex) => removePokemonFromSlot(team.id, slotIndex)}
+                onToggleShiny={(slotIndex) => togglePokemonShiny(team.id, slotIndex)}
               />
             ))}
           </div>

@@ -711,7 +711,10 @@ body {
   padding: 0.25rem 0.45rem;
   overflow: hidden;
   background: var(--panel-alt);
+  color: var(--text-primary);
   border: 2px solid var(--border-subtle);
+  appearance: none;
+  -webkit-appearance: none;
   cursor: pointer;
 }
 .sighting-list button:hover { border-color: var(--panel-border); background: #FFF3C4; }
@@ -1693,6 +1696,20 @@ body {
 }
 
 @media (max-width: 600px) {
+  .right-column {
+    bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .right-content {
+    max-height: min(68vh, 36rem);
+  }
+
+  @supports (height: 100svh) {
+    .right-content {
+      max-height: min(68svh, 36rem);
+    }
+  }
+
   .hero-copy {
     align-items: flex-start;
     flex-direction: column;

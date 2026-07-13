@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import axios from "axios";
 import App from "./App";
+import { getGridLayout } from "./Components/Main";
 
 jest.mock("axios");
 
@@ -145,6 +146,11 @@ test("automatically changes the page size when the viewport gets smaller", async
   });
 
   expect(await screen.findByText(/showing page 1 of 8/i)).toBeInTheDocument();
+});
+
+test("keeps three mobile rows when browser chrome changes the viewport height", () => {
+  expect(getGridLayout(390, 844)).toEqual({ columns: 2, rows: 3, pageSize: 6 });
+  expect(getGridLayout(390, 700)).toEqual({ columns: 2, rows: 3, pageSize: 6 });
 });
 
 test("closes the selected Pokémon detail without changing the grid", async () => {

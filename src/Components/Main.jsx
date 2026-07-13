@@ -12,11 +12,14 @@ import { getDailyPokemon } from "./dailyEncounter";
 const POKEMON_API = "https://pokeapi.co/api/v2/pokemon";
 const TYPE_API = "https://pokeapi.co/api/v2/type";
 
-const getGridLayout = () => {
-  const width = window.innerWidth;
-  const height = window.innerHeight;
+export const getGridLayout = (
+  width = window.innerWidth,
+  height = window.innerHeight
+) => {
   const columns = width > 1200 ? 4 : width > 900 ? 3 : 2;
-  const rows = height >= 820 ? 3 : height >= 620 ? 2 : 1;
+  // Mobile browser chrome changes innerHeight while the user scrolls. Keep
+  // phone pagination stable so Safari's toolbar cannot remove a grid row.
+  const rows = width <= 600 ? 3 : height >= 820 ? 3 : height >= 620 ? 2 : 1;
 
   return { columns, rows, pageSize: columns * rows };
 };

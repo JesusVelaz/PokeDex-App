@@ -1,15 +1,18 @@
 {
   "files": {
-    "main.css": "/PokeDex-App/static/css/main.daf9a299.css",
-    "main.js": "/PokeDex-App/static/js/main.4e651455.js",
+    "main.css": "/PokeDex-App/static/css/main.565758ce.css",
+    "main.js": "/PokeDex-App/static/js/main.6c1693fc.js",
     "static/js/453.8e96443b.chunk.js": "/PokeDex-App/static/js/453.8e96443b.chunk.js",
+    "static/media/pixel-coast-4k-wide.png": "/PokeDex-App/static/media/pixel-coast-4k-wide.9f5cac5988a1f7b4d874.png",
+    "static/media/whos-that-pokemon-bg.png": "/PokeDex-App/static/media/whos-that-pokemon-bg.9cb816b1e0d593a9b0d5.png",
+    "static/media/team-emblems.png": "/PokeDex-App/static/media/team-emblems.1b0c7aa74d7ae3964f3a.png",
     "index.html": "/PokeDex-App/index.html",
-    "main.daf9a299.css.map": "/PokeDex-App/static/css/main.daf9a299.css.map",
-    "main.4e651455.js.map": "/PokeDex-App/static/js/main.4e651455.js.map",
+    "main.565758ce.css.map": "/PokeDex-App/static/css/main.565758ce.css.map",
+    "main.6c1693fc.js.map": "/PokeDex-App/static/js/main.6c1693fc.js.map",
     "453.8e96443b.chunk.js.map": "/PokeDex-App/static/js/453.8e96443b.chunk.js.map"
   },
   "entrypoints": [
-    "static/css/main.daf9a299.css",
-    "static/js/main.4e651455.js"
+    "static/css/main.565758ce.css",
+    "static/js/main.6c1693fc.js"
   ]
 }
